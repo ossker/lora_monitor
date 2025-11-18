@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ device.name }} ({{ device.device_id }})</h2>
+    <p>Dev EUI: {{ device.dev_eui }}</p>
+
+    <h4 class="mt-4">Odczyty</h4>
+    <table id="readings-table" class="table table-striped">
+    <thead>
+        <tr>
+            <th>Temperatura [°C]</th>
+            <th>Wilgotność [%]</th>
+            <th>Ciśnienie [hPa]</th>
+            <th>Czas</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for reading in readings %}
+        <tr>
+            <td>{{ reading.temperature|default:"—" }}</td>
+            <td>{{ reading.humidity|default:"—" }}</td>
+            <td>{{ reading.pressure|default:"—" }}</td>
+            <td>{{ reading.timestamp }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4" class="text-center text-muted">Brak odczytów</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+
+{% endblock %}
+
+{% block domready %}
+const deviceId = "{{ device.device_id }}";
+const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/device/${deviceId}/`);
+
+socket.onopen = () => console.log("WebSocket connected");
+socket.onerror = (e) => console.error("WebSocket error", e);
+
+socket.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    const tbody = document.querySelector('#readings-table tbody');
+
+    const row = `<tr>
+        <td>${data.temperature ?? '—'}</td>
+        <td>${data.humidity ?? '—'}</td>
+        <td>${data.pressure ?? '—'}</td>
+        <td>${new Date(data.timestamp).toLocaleString()}</td>
+    </tr>`;
+    tbody.insertAdjacentHTML('afterbegin', row);
+};
+{% endblock %}

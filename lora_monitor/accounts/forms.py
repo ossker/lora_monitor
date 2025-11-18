@@ -1,0 +1,30 @@
+from django import forms
+from django.core.exceptions import ValidationError
+from django.forms import ModelForm
+
+from .models import User
+
+
+class UserCreationForm(ModelForm):
+    password1 = forms.CharField(widget=forms.PasswordInput, label='Hasło')
+    password2 = forms.CharField(widget=forms.PasswordInput, label='Powtórz hasło')
+
+    class Meta:
+        model = User
+        fields = ('email_address', 'first_name', 'last_name')
+
+    def clean_password2(self):
+        password1 = self.cleaned_data.get('password1')
+        password2 = self.cleaned_data.get('password2')
+        if password1 and password2 and password1 != password2:
+            raise ValidationError('Hasła nie są identyczne.')
+        return password2
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data['password1'])
+        if commit:
+            user.save()
+        return user
+
+

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+Lista urządzeń
+{% endblock %}
+
+{% block content %}
+<h1>Urządzenia</h1>
+<a href="{% url 'devices:create' %}">Dodaj urządzenie</a>
+
+{% for device in devices %}
+    {{ device.device_id }}
+    {{ device.dev_eui }}
+    {{ device.is_active }}
+    {{ device.last_seen|date:"Y-m-d H:i:s" }}
+    <form method="POST" action="{% url 'devices:delete' device.id %}" onsubmit="return confirm('Na pewno chcesz usunąć urządzenie?');">
+        {% csrf_token %}
+        <button type="submit">Usuń</button>
+    </form>
+    <a href="{% url 'devices:detail' device.id %}">Zobacz</a>
+{% empty %}
+    <p>Brak urządzeń.</p>
+{% endfor %}
+
+{% endblock %}
