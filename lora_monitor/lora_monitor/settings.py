@@ -26,7 +26,9 @@ SECRET_KEY = 'django-insecure--jmt9@5&ur*24f(lvy6&u#15v6#wqr9o9+!!!x=2n68u9k1qag
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
+LOGIN_URL = '/accounts/login'
+LOGIN_REDIRECT_URL = '/devices/'
+LOGOUT_REDIRECT_URL = '/accounts/login'
 
 # Application definition
 AUTH_USER_MODEL = 'accounts.User'
@@ -119,7 +121,7 @@ LANGUAGE_CODE = 'pl'
 TIME_ZONE = 'Europe/Warsaw'
 USE_I18N = True
 USE_L10N = True
-USE_TZ = False
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)

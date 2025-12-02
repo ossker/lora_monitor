@@ -1,57 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}
-Urządzenie
-{% endblock %}
 
 {% block content %}
-<div>
-    
-    <h2>
-        {% if form.instance.pk %}
-            Edytuj urządzenie
-        {% else %}
-            Dodaj urządzenie
-        {% endif %}
-    </h2>
-
-    <form method="post">
-        {% csrf_token %}
-
-        {% if form.errors %}
-        <div>
-            <strong>Uwaga!</strong> Popraw błędy w formularzu.
-        </div>
-        {% endif %}
-
-        <div>
-            <label class="form-label">Device ID</label>
-            {{ form.device_id }}
-        </div>
-
-        <div>
-            <label class="form-label">DevEUI</label>
-            {{ form.dev_eui }}
-        </div>
-
-        <div>
-            <label class="form-label">Nazwa</label>
-            {{ form.name }}
-        </div>
-
-        <div>
-            <label class="form-label">Opis</label>
-            {{ form.description }}
-        </div>
-
-        <div>
-            {{ form.is_active }}
-            <label class="form-check-label">Urządzenie aktywne</label>
-        </div>
-            <button type="submit">
-                    Dodaj urządzenie
-            </button>
-    </form>
-</div>
+<h1>{% if device %}Edit Device{% else %}Add Device{% endif %}</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">{% if device %}Update{% else %}Create{% endif %}</button>
+</form>
+<a href="{% url 'devices:list' %}">Back to list</a>
 {% endblock %}

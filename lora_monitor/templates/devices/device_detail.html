@@ -2,8 +2,35 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>{{ device.name }} ({{ device.device_id }})</h2>
+    <h2>{{ device.name|default:device.device_id }} ({{ device.device_id }})</h2>
     <p>Dev EUI: {{ device.dev_eui }}</p>
+    <p>Application: {{ device.application_id }}</p>
+    <p>Adres: {{ device.address|default:"—" }}</p>
+    <p>Współrzędne:
+        {% if device.location_lat and device.location_lon %}
+            {{ device.location_lat }}, {{ device.location_lon }}
+        {% else %}
+            —
+        {% endif %}
+    </p>
+    <p>Status:
+        {% if device.online %}
+            <span class="text-success">Online</span>
+        {% else %}
+            <span class="text-danger">Offline</span>
+        {% endif %}
+    </p>
+    <p>Ostatnie połączenie: {{ device.last_seen|default:"—" }}</p>
+    <p>RSSI: {{ device.last_rssi|default:"—" }}, SNR: {{ device.last_snr|default:"—" }}</p>
+    <p>Ostatni Gateway: {{ device.last_gateway_id|default:"—" }}</p>
+    <p>Utraty pakietów : {{ packet_loss }}</p>
+    <p>Liczba odebranych uplinków: {{ uplink_count }}</p>
+
+    <h4 class="mt-4">Mapa lokalizacji</h4>
+    <div id="map" style="height: 300px; width: 100%;"></div>
+
+    <h4 class="mt-4">Heatmapa RSSI (gateway)</h4>
+    <div id="heatmap" style="height: 300px; width: 100%;"></div>
 
     <h4 class="mt-4">Odczyty</h4>
     <table id="readings-table" class="table table-striped">
@@ -12,6 +39,7 @@
             <th>Temperatura [°C]</th>
             <th>Wilgotność [%]</th>
             <th>Ciśnienie [hPa]</th>
+            <th>f_cnt</th>
             <th>Czas</th>
         </tr>
     </thead>
@@ -21,6 +49,7 @@
             <td>{{ reading.temperature|default:"—" }}</td>
             <td>{{ reading.humidity|default:"—" }}</td>
             <td>{{ reading.pressure|default:"—" }}</td>
+            <td>{{ reading.f_cnt|default:"—" }}</td>
             <td>{{ reading.timestamp }}</td>
         </tr>
         {% empty %}
@@ -29,30 +58,136 @@
         </tr>
         {% endfor %}
     </tbody>
-</table>
+    </table>
+
+    <h4 class="mt-4">Wykresy</h4>
+    <canvas id="sensorChart" width="100%" height="50"></canvas>
+
+    <h4 class="mt-4">Restart urządzenia</h4>
+    <ul>
+        {% for r in restarts %}
+            <li>{{ r.timestamp }}: f_cnt spadło z {{ r.prev_fcnt }} → {{ r.new_fcnt }}</li>
+        {% empty %}
+            <li class="text-muted">Brak restartów</li>
+        {% endfor %}
+    </ul>
+
+    <h4 class="mt-4">Anomalie temperatury</h4>
+    <ul>
+        {% for a in anomalies %}
+            <li>{{ a.timestamp }}: temperatura zmieniła się z {{ a.prev_temp }} → {{ a.current_temp }} °C</li>
+        {% empty %}
+            <li class="text-muted">Brak anomalii</li>
+        {% endfor %}
+    </ul>
+
 </div>
-
-
 {% endblock %}
 
 {% block domready %}
-const deviceId = "{{ device.device_id }}";
-const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/device/${deviceId}/`);
 
-socket.onopen = () => console.log("WebSocket connected");
-socket.onerror = (e) => console.error("WebSocket error", e);
+    {% if device.location_lat and device.location_lon %}
+        const lat = {{ device.location_lat|stringformat:"f" }};
+        const lon = {{ device.location_lon|stringformat:"f" }};
 
-socket.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    const tbody = document.querySelector('#readings-table tbody');
+        const map = L.map('map').setView([lat, lon], 13);
 
-    const row = `<tr>
-        <td>${data.temperature ?? '—'}</td>
-        <td>${data.humidity ?? '—'}</td>
-        <td>${data.pressure ?? '—'}</td>
-        <td>${new Date(data.timestamp).toLocaleString()}</td>
-    </tr>`;
-    tbody.insertAdjacentHTML('afterbegin', row);
-};
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        L.marker([lat, lon]).addTo(map)
+            .bindPopup('{{ device.name|default:device.device_id }}')
+            .openPopup();
+    {% else %}
+        document.getElementById('map').innerHTML = '<p class="text-muted text-center mt-3">Brak współrzędnych do wyświetlenia mapy</p>';
+    {% endif %}
+
+    const heatData = {{ heatmap|safe }};
+    const heatmap = L.map('heatmap').setView([53.1, 18.0], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(heatmap);
+    L.heatLayer(heatData, {radius: 25, blur: 15}).addTo(heatmap);
+
+
+    const deviceId = "{{ device.device_id }}";
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/device/${deviceId}/`);
+
+    socket.onopen = () => console.log("WebSocket connected");
+    socket.onerror = (e) => console.error("WebSocket error", e);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        const tbody = document.querySelector('#readings-table tbody');
+
+        const row = `<tr>
+            <td>${data.temperature ?? '—'}</td>
+            <td>${data.humidity ?? '—'}</td>
+            <td>${data.pressure ?? '—'}</td>
+            <td>${data.f_cnt ?? '—'}</td>
+            <td>${new Date(data.timestamp).toLocaleString()}</td>
+        </tr>`;
+        tbody.insertAdjacentHTML('afterbegin', row);
+    };
+
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+const sensorChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ timestamps|safe }},
+        datasets: [
+            {
+                label: 'Temperatura [°C]',
+                data: {{ temperatures|safe }},
+                borderColor: 'rgba(255, 99, 132, 1)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                yAxisID: 'y',
+            },
+            {
+                label: 'Wilgotność [%]',
+                data: {{ humidities|safe }},
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                yAxisID: 'y',
+            },
+            {
+                label: 'Ciśnienie [hPa]',
+                data: {{ pressures|safe }},
+                borderColor: 'rgba(75, 192, 192, 1)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                yAxisID: 'y2',  // drugi Y axis dla ciśnienia
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        stacked: false,
+        scales: {
+            y: {
+                type: 'linear',
+                position: 'left',
+                title: {
+                    display: true,
+                    text: 'Temperatura / Wilgotność'
+                },
+            },
+            y2: {
+                type: 'linear',
+                position: 'right',
+                title: {
+                    display: true,
+                    text: 'Ciśnienie'
+                },
+                grid: {
+                    drawOnChartArea: false
+                }
+            }
+        }
+    }
+});
+
 {% endblock %}
