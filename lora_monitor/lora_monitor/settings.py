@@ -25,7 +25,11 @@ SECRET_KEY = 'django-insecure--jmt9@5&ur*24f(lvy6&u#15v6#wqr9o9+!!!x=2n68u9k1qag
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "ossker.pythonanywhere.com",
+    "www.ossker.pythonanywhere.com",
+]
 LOGIN_URL = '/accounts/login'
 LOGIN_REDIRECT_URL = '/devices/'
 LOGOUT_REDIRECT_URL = '/accounts/login'
